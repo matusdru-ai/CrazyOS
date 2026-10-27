@@ -1,0 +1,33 @@
+name: Build CrazyOS ISO
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+      - name: Unpack the CrazyOS kit
+        run: |
+          if [ -f crazyos-linux.zip ]; then unzip -oq crazyos-linux.zip && echo "KIT=crazyos-linux" >> $GITHUB_ENV; else echo "KIT=." >> $GITHUB_ENV; fi
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL /usr/local/share/boost || true
+          sudo docker image prune --all --force || true
+      - name: Build the ISO inside Debian 13
+        run: |
+          cd "$KIT"
+          docker run --rm --privileged -v "$PWD":/build -w /build debian:trixie bash -c "apt-get update && apt-get install -y live-build ca-certificates && bash build.sh"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CrazyOS-26.10-amd64
+          path: ${{ env.KIT }}/out/
+          compression-level: 0
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: build-log
+          path: ${{ env.KIT }}/build.log
+          if-no-files-found: ignore
